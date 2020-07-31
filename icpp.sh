@@ -57,7 +57,11 @@ function compile()
     if [ -e $source_file ]; then
         echo "g++ -o $output_file $source_file $@"
         g++ -o $output_file $source_file $@
-        chmod +x $output_file
+        if [ $? -eq 0 ]; then
+            chmod +x $output_file
+        else
+            return 1
+        fi
     else
         echo "ERROR: No source file found"
         return 1
@@ -110,6 +114,15 @@ function main_func()
         ;;
     home | h)
         echo -e "cd $ICPP_HOME\c" | xsel -ib
+        cd $ICPP_HOME
+        ;;
+    copy)
+        dir=`getDirByID $icpp_currID`
+        file=$ICPP_HOME/$dir/main.cpp
+        if [ -e $file ]; then
+            cat $file | xsel -ob
+            echo "Copied to clipboard."
+        fi
         ;;
     ls)
         dir=`getDirByID $icpp_currID`
@@ -179,9 +192,13 @@ function main_func()
         fi
         mkdir $icpp_curr_dir
 
-        header="#include <iostream>"
+        header="#include <iostream>\n#include <chrono>"
         define="#define Log(x) std::cout << (x) << std::endl\n\n"
-        main="int main() {\n\n\treturn 0;\n}\n"
+        tp_start="auto start = std::chrono::system_clock::now();"
+        tp_end="auto end = std::chrono::system_clock::now();"
+        tp_dur="auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);"
+        log_time="printf(\"TimeConsuming: %ld ms"'\\'"n\", dur.count());"
+        main="int main() {\n\t$tp_start\n\n\n\t$tp_end\n\t$tp_dur\n\t$log_time\n\treturn 0;\n}\n"
 
         if [ $# -gt 2 ]; then
             if [ $2 = "-h" ]; then
@@ -209,17 +226,22 @@ function main_func()
         ;;
     run | r)
         dir=`getDirByID $icpp_currID`
+        parameters=`removeFirstParemeter $@`
         if [ ! -e $ICPP_HOME/$dir/out ]; then
             compile
         fi
         echo '************ Running ************'
-        $ICPP_HOME/$dir/out
+        $ICPP_HOME/$dir/out $parameters
         echo '*********************************'
         ;;
     rc)
         dir=`getDirByID $icpp_currID`
         flag=`removeFirstParemeter $@`
         compile $flag
+        if [ $? -ne 0 ]; then
+            echo "Compile failed"
+            return 1
+        fi
         echo '************ Running ************'
         $ICPP_HOME/$dir/out
         echo '*********************************'
